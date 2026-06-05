@@ -58,17 +58,115 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// ... (የሰንጠረዥ ፍጥረት እንደቀድሞው ነው, ለአጭርነት አልደገምም)
-// ነገር ግን ሁሉም CREATE TABLE እንዳለ ይቆያል
-
-// የተጨመረ ሰንጠረዥ ለተጠቃሚ ደህንነት ማረጋገጫ (2FA future)
+// Create tables if not exists
 db.exec(`
-  ALTER TABLE users ADD COLUMN totp_secret TEXT;
-  ALTER TABLE users ADD COLUMN email TEXT;
-`).catch(() => {});
+  CREATE TABLE IF NOT EXISTS users (
+    phone TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    password TEXT NOT NULL,
+    balance REAL DEFAULT 0,
+    ref_code TEXT UNIQUE,
+    referred_by TEXT,
+    wins INTEGER DEFAULT 0,
+    total_won REAL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    last_login INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS sessions (
+    token TEXT PRIMARY KEY,
+    phone TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    FOREIGN KEY (phone) REFERENCES users(phone) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS rooms (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    status TEXT DEFAULT 'waiting',
+    host_phone TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    finished_at INTEGER,
+    winner_phone TEXT,
+    prize_pool REAL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS room_players (
+    room_id TEXT NOT NULL,
+    socket_id TEXT,
+    phone TEXT NOT NULL,
+    name TEXT NOT NULL,
+    card_number INTEGER NOT NULL,
+    card_matrix TEXT NOT NULL,
+    marked TEXT NOT NULL,
+    lines_set TEXT NOT NULL,
+    lines INTEGER DEFAULT 0,
+    is_winner INTEGER DEFAULT 0,
+    joined_at INTEGER NOT NULL,
+    PRIMARY KEY (room_id, phone),
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS deposits (
+    id TEXT PRIMARY KEY,
+    phone TEXT NOT NULL,
+    amount REAL NOT NULL,
+    reference TEXT NOT NULL,
+    method TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    approved_at INTEGER,
+    approved_by TEXT,
+    FOREIGN KEY (phone) REFERENCES users(phone) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS withdrawals (
+    id TEXT PRIMARY KEY,
+    phone TEXT NOT NULL,
+    amount REAL NOT NULL,
+    withdraw_phone TEXT NOT NULL,
+    method TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at INTEGER NOT NULL,
+    processed_at INTEGER,
+    FOREIGN KEY (phone) REFERENCES users(phone) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS payment_orders (
+    id TEXT PRIMARY KEY,
+    phone TEXT NOT NULL,
+    amount REAL NOT NULL,
+    method TEXT NOT NULL,
+    external_order_id TEXT,
+    status TEXT DEFAULT 'pending',
+    checkout_url TEXT,
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    FOREIGN KEY (phone) REFERENCES users(phone) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone TEXT NOT NULL,
+    type TEXT NOT NULL,
+    amount REAL NOT NULL,
+    balance_after REAL NOT NULL,
+    reference TEXT,
+    status TEXT DEFAULT 'completed',
+    created_at INTEGER NOT NULL,
+    FOREIGN KEY (phone) REFERENCES users(phone) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_sessions_phone ON sessions(phone);
+  CREATE INDEX IF NOT EXISTS idx_deposits_status ON deposits(status, created_at);
+  CREATE INDEX IF NOT EXISTS idx_transactions_phone ON transactions(phone, created_at);
+  CREATE INDEX IF NOT EXISTS idx_room_players_room ON room_players(room_id);
+`);
 
 // ════════════════════════════════════════════════
-//   DB HELPERS (እንደቀድሞው ነገር ግን የተሻሻሉ ጥያቄዎች)
+//   DB HELPERS (prepared statements)
 // ════════════════════════════════════════════════
 const stmt = {
   getUser: db.prepare('SELECT * FROM users WHERE phone = ?'),
@@ -393,7 +491,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: NODE_ENV === 'production' ? false : '*' }, pingTimeout: 30000 });
 
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false })); // custom CSP later if needed
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: NODE_ENV === 'production' ? false : '*' }));
 app.use(bodyParser.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
