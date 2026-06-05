@@ -1020,6 +1020,17 @@ function connectSocket() {
   socket.on('errorMessage', (msg) => {
     const m = (typeof msg === 'string') ? msg : (msg && msg.message) ? msg.message : 'ስህተት';
     toast(m);
+    // If session expired → auto logout so user can re-login
+    if (m && (m.includes('እንደገና ይግቡ') || m.includes('ያልተረጋገጠ'))) {
+      setTimeout(() => {
+        authToken = null;
+        currentUser = null;
+        localStorage.removeItem('ultraToken');
+        localStorage.removeItem('ultraUser');
+        gotoPage('splash');
+        toast('Session አልቋል — እንደገና ይግቡ');
+      }, 1500);
+    }
   });
 
   return socket;
