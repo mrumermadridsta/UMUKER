@@ -876,7 +876,11 @@ function connectSocket() {
   if (socket && socket.connected) return socket;
   socket = io({ auth: { token: authToken } });
 
-  socket.on('connect', () => console.log('✅ socket connected'));
+  socket.on('connect', () => {
+    console.log('✅ socket connected');
+    // Re-send token on every connect/reconnect so server always knows who we are
+    if (authToken) socket.emit('authenticate', { token: authToken });
+  });
   socket.on('disconnect', () => console.log('❌ socket disconnected'));
 
   socket.on('roomCreated', (data) => {
@@ -1035,17 +1039,21 @@ async function refreshBalance() {
 //   ROOM FLOW
 // ════════════════════════════════════════════════
 function openRoom(price, name) {
-  if (!currentUser) {
-    toast('እባክዎ ይመዝገቡ');
-    return;
-  }
-  if (currentUser.balance < price) {
-    toast('በቂ ገንዘብ የለም — ዲፖዚት ያድርጉ');
-    openModal('depositMod');
-    return;
-  }
+  if (!currentUser) { toast('እባክዎ ይመዝገቡ'); return; }
+  if (currentUser.phone && currentUser.phone.startsWith('demo_')) { toast('ዲሞ ሂሳብ — እውነተኛ ምዝገባ ያድርጉ'); return; }
+  if (currentUser.balance < price) { toast('በቂ ገንዘብ የለም — ዲፖዚት ያድርጉ'); openModal('depositMod'); return; }
+
+  toast('⏳ ክፍል እየተፈለገ...');
   const s = connectSocket();
-  s.emit('joinOrCreateRoom', { price }); // FIX: auto-matchmaking
+
+  // FIX: wait for connection before emitting — avoids race condition
+  if (s.connected) {
+    s.emit('joinOrCreateRoom', { price });
+  } else {
+    s.once('connect', () => {
+      s.emit('joinOrCreateRoom', { price });
+    });
+  }
 }
 
 function enterCardPicker(taken) {
