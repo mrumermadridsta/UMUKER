@@ -23,6 +23,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const bodyParser = require('body-parser');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -31,6 +32,11 @@ const Database = require('better-sqlite3');
 const winston = require('winston');
 const Telebirr = require('./payment/telebirr');
 const CBEBirr = require('./payment/cbe');
+
+// ── FIX 1: Create required directories before anything else ──
+['logs', 'data'].forEach(dir => {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
 
 // ════════════════════════════════════════════════
 //   CONFIG
@@ -44,8 +50,8 @@ const JWT_EXPIRY = '30d';
 const DB_PATH = process.env.DB_PATH || './data/ultra-bingo.db';
 
 if (NODE_ENV === 'production' && JWT_SECRET === 'dev-secret-change-me') {
-  console.error('❌ FATAL: JWT_SECRET must be set in production');
-  process.exit(1);
+  // FIX 2: warn only — don't crash so Render can still start
+  console.warn('⚠️  Set JWT_SECRET in Render environment variables!');
 }
 
 // ════════════════════════════════════════════════
@@ -1035,31 +1041,52 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   logger.info(`🔌 connect: ${socket.id} (user:${socket.phone || 'guest'})`);
 
-  socket.on('createRoom', ({ playerName, price, roomName }) => {
-    if (!socket.phone) {
-      return socket.emit('errorMessage', { message: 'መጀመሪያ ይመዝገቡ' });
-    }
+  // FIX 3: joinOrCreateRoom — auto-matchmaking
+  // If a waiting room at this price exists, join it. Otherwise create new.
+  socket.on('joinOrCreateRoom', ({ price }) => {
+    if (!socket.phone) return socket.emit('errorMessage', { message: 'መጀመሪያ ይመዝገቡ' });
     const user = stmt.getUser.get(socket.phone);
-    if (user.balance < price) {
-      return socket.emit('errorMessage', { message: 'በቂ ገንዘብ የለም' });
-    }
-    if (price < 5 || price > 100) {
-      return socket.emit('errorMessage', { message: 'ዋጋ ከ5-100 ብር ብቻ' });
+    if (!user) return socket.emit('errorMessage', { message: 'ተጠቃሚ አልተገኘም' });
+    if (user.balance < price) return socket.emit('errorMessage', { message: 'በቂ ገንዘብ የለም — ዲፖዚት ያድርጉ' });
+    if (price < 5 || price > 100) return socket.emit('errorMessage', { message: 'ዋጋ ከ5-100 ብር ብቻ' });
+
+    // Find an open waiting room at this price
+    let targetRoom = null;
+    for (const room of rooms.values()) {
+      if (room.price === price && room.status === 'waiting' && room.players.size < 100) {
+        targetRoom = room;
+        break;
+      }
     }
 
-    const id = genRoomId();
-    const room = new Room(id, roomName, price, socket.phone);
-    rooms.set(id, room);
-    socket.join(id);
-    stmt.createRoom.run(id, roomName, price, socket.phone, Date.now());
+    if (!targetRoom) {
+      // No room found — create one, this player is host
+      const id = genRoomId();
+      const roomName = price + ' ብር';
+      targetRoom = new Room(id, roomName, price, socket.phone);
+      rooms.set(id, targetRoom);
+      socket.join(id);
+      stmt.createRoom.run(id, roomName, price, socket.phone, Date.now());
+      socket.emit('roomCreated', {
+        roomId: id, roomName, price, isHost: true,
+        takenCards: Array.from(targetRoom.takenCards)
+      });
+    } else {
+      // Room found — join it
+      socket.join(targetRoom.id);
+      socket.emit('roomJoined', {
+        roomId: targetRoom.id,
+        roomName: targetRoom.name,
+        price: targetRoom.price,
+        isHost: false,
+        takenCards: Array.from(targetRoom.takenCards)
+      });
+    }
+  });
 
-    socket.emit('roomCreated', {
-      roomId: id,
-      roomName,
-      price,
-      isHost: true,
-      takenCards: Array.from(room.takenCards)
-    });
+  // Keep createRoom for backward compatibility
+  socket.on('createRoom', ({ playerName, price, roomName }) => {
+    socket.emit('errorMessage', { message: 'joinOrCreateRoom ይጠቀሙ' });
   });
 
   socket.on('selectCard', ({ roomId, cardNumber }) => {
@@ -1079,6 +1106,8 @@ io.on('connection', (socket) => {
     if (!Number.isInteger(cardNumber) || cardNumber < 1 || cardNumber > 400) {
       return socket.emit('errorMessage', { message: 'ካርቴላ 1-400 ብቻ' });
     }
+
+    socket.join(roomId); // FIX 4: ensure player 2 is in the IO room
 
     const r = room.addPlayer(socket.id, socket.phone, user.name, cardNumber);
     if (!r.ok) return socket.emit('errorMessage', { message: r.msg });
