@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ULTRA BINGO - Admin Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+:root { --bg: #0a0a1a; --card: #13132a; --border: #2a2a4a; --gold: #FFD700; --green: #00FF88; --red: #FF2055; }
+body { background: var(--bg); color: #fff; font-family: 'Inter', -apple-system, sans-serif; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.btn { padding: 8px 16px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: var(--gold); color: #1a0800; }
+.btn-primary:hover { background: #FFC700; }
+.btn-success { background: var(--green); color: #001800; }
+.btn-danger { background: var(--red); color: #fff; }
+.input { background: #0d0d20; border: 1px solid var(--border); color: #fff; padding: 10px 14px; border-radius: 8px; width: 100%; }
+.table { width: 100%; border-collapse: collapse; }
+.table th { background: #1a1a35; padding: 10px; text-align: left; font-size: 0.78rem; color: #8888aa; text-transform: uppercase; letter-spacing: 1px; }
+.table td { padding: 10px; border-top: 1px solid var(--border); font-size: 0.85rem; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; }
+.badge-pending { background: #ffaa0022; color: #ffaa00; }
+.badge-completed { background: #00FF8822; color: #00FF88; }
+.badge-failed { background: #FF205522; color: #FF2055; }
+</style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+<div class="max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-3xl font-bold" style="color: var(--gold);">🎯 ULTRA BINGO</h1>
+      <p class="text-gray-400 text-sm">Admin Dashboard</p>
+    </div>
+    <div class="text-right">
+      <div class="text-xs text-gray-500">Logged in as</div>
+      <div class="text-sm font-mono" id="adminName">Admin</div>
+    </div>
+  </div>
+
+  <!-- Login -->
+  <div id="loginBox" class="card max-w-md mx-auto mt-20">
+    <h2 class="text-xl font-bold mb-4">🔐 Admin Login</h2>
+    <input type="password" id="adminKey" class="input mb-3" placeholder="Admin Key" />
+    <button class="btn btn-primary w-full" onclick="login()">Login</button>
+    <p class="text-xs text-gray-500 mt-2">Key: 8084877485</p>
+  </div>
+
+  <!-- Dashboard -->
+  <div id="dashboard" style="display:none;">
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="card">
+        <div class="text-xs text-gray-400 uppercase">Users</div>
+        <div class="text-2xl font-bold" id="statUsers" style="color: var(--gold);">—</div>
+      </div>
+      <div class="card">
+        <div class="text-xs text-gray-400 uppercase">Active Rooms</div>
+        <div class="text-2xl font-bold" id="statRooms" style="color: var(--blue);">—</div>
+      </div>
+      <div class="card">
+        <div class="text-xs text-gray-400 uppercase">Total Deposits</div>
+        <div class="text-2xl font-bold" id="statDeposits" style="color: var(--green);">—</div>
+      </div>
+      <div class="card">
+        <div class="text-xs text-gray-400 uppercase">Total Withdrawals</div>
+        <div class="text-2xl font-bold" id="statWithdrawals" style="color: var(--red);">—</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="flex gap-2 mb-4 border-b border-gray-700">
+      <button class="tab-btn px-4 py-2 text-sm font-semibold" data-tab="deposits" onclick="switchTab('deposits')">📥 Deposits</button>
+      <button class="tab-btn px-4 py-2 text-sm font-semibold" data-tab="withdrawals" onclick="switchTab('withdrawals')">📤 Withdrawals</button>
+      <button class="tab-btn px-4 py-2 text-sm font-semibold" data-tab="users" onclick="switchTab('users')">👥 Users</button>
+      <button class="tab-btn px-4 py-2 text-sm font-semibold" data-tab="games" onclick="switchTab('games')">🎮 Games</button>
+      <button class="tab-btn px-4 py-2 text-sm font-semibold" data-tab="transactions" onclick="switchTab('transactions')">💸 Transactions</button>
+    </div>
+
+    <!-- Deposits Tab -->
+    <div class="tab-content" data-tab="deposits">
+      <div class="card">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-bold">⏳ Pending Deposits</h3>
+          <button class="btn btn-primary text-sm" onclick="loadDeposits()">🔄 Refresh</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>ID</th><th>Phone</th><th>Amount</th><th>Method</th><th>Reference</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="depositsBody">
+            <tr><td colspan="7" class="text-center text-gray-500 py-4">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Withdrawals Tab -->
+    <div class="tab-content" data-tab="withdrawals" style="display:none;">
+      <div class="card">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-bold">⏳ Pending Withdrawals</h3>
+          <button class="btn btn-primary text-sm" onclick="loadWithdrawals()">🔄 Refresh</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>ID</th><th>Phone</th><th>Amount</th><th>To Phone</th><th>Created</th><th>Action</th></tr></thead>
+          <tbody id="withdrawalsBody">
+            <tr><td colspan="6" class="text-center text-gray-500 py-4">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Users Tab -->
+    <div class="tab-content" data-tab="users" style="display:none;">
+      <div class="card">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-bold">👥 All Users</h3>
+          <input type="text" id="userSearch" class="input" style="max-width: 200px;" placeholder="Search phone..." oninput="filterUsers()" />
+        </div>
+        <table class="table">
+          <thead><tr><th>Phone</th><th>Name</th><th>Balance</th><th>Wins</th><th>Total Won</th><th>Joined</th></tr></thead>
+          <tbody id="usersBody">
+            <tr><td colspan="6" class="text-center text-gray-500 py-4">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Games Tab -->
+    <div class="tab-content" data-tab="games" style="display:none;">
+      <div class="card">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-bold">🎮 Recent Games</h3>
+          <button class="btn btn-primary text-sm" onclick="loadGames()">🔄 Refresh</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>Room ID</th><th>Name</th><th>Price</th><th>Status</th><th>Players</th><th>Winner</th><th>Prize</th><th>Created</th></tr></thead>
+          <tbody id="gamesBody">
+            <tr><td colspan="8" class="text-center text-gray-500 py-4">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Transactions Tab -->
+    <div class="tab-content" data-tab="transactions" style="display:none;">
+      <div class="card">
+        <div class="flex justify-between items-center mb-3">
+          <h3 class="font-bold">💸 Recent Transactions</h3>
+          <button class="btn btn-primary text-sm" onclick="loadTransactions()">🔄 Refresh</button>
+        </div>
+        <table class="table">
+          <thead><tr><th>ID</th><th>Phone</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Status</th><th>Time</th></tr></thead>
+          <tbody id="transactionsBody">
+            <tr><td colspan="7" class="text-center text-gray-500 py-4">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = '';
+let adminKey = localStorage.getItem('adminKey') || '';
+let usersCache = [];
+
+if (adminKey) {
+  document.getElementById('adminKey').value = adminKey;
+  showDashboard();
+}
+
+async function apiCall(path) {
+  const res = await fetch(API + path + (path.includes('?') ? '&' : '?') + 'adminKey=' + encodeURIComponent(adminKey));
+  if (res.status === 403) {
+    logout();
+    return null;
+  }
+  return await res.json();
+}
+
+async function login() {
+  adminKey = document.getElementById('adminKey').value;
+  if (!adminKey) return alert('Enter admin key');
+  localStorage.setItem('adminKey', adminKey);
+  const data = await apiCall('/api/admin/stats');
+  if (data && data.success) {
+    showDashboard();
+  } else {
+    alert('Invalid key');
+    localStorage.removeItem('adminKey');
+  }
+}
+
+function logout() {
+  localStorage.removeItem('adminKey');
+  location.reload();
+}
+
+function showDashboard() {
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  loadStats();
+  loadDeposits();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(el => el.style.color = '#8888aa');
+  document.querySelector(`.tab-content[data-tab="${tab}"]`).style.display = 'block';
+  document.querySelector(`.tab-btn[data-tab="${tab}"]`).style.color = 'var(--gold)';
+
+  if (tab === 'deposits') loadDeposits();
+  if (tab === 'withdrawals') loadWithdrawals();
+  if (tab === 'users') loadUsers();
+  if (tab === 'games') loadGames();
+  if (tab === 'transactions') loadTransactions();
+}
+
+async function loadStats() {
+  const data = await apiCall('/api/admin/stats');
+  if (data && data.success) {
+    document.getElementById('statUsers').textContent = data.stats.users;
+    document.getElementById('statRooms').textContent = data.stats.rooms;
+    document.getElementById('statDeposits').textContent = (data.stats.totalDeposits || 0).toFixed(0) + ' ብር';
+    document.getElementById('statWithdrawals').textContent = (data.stats.totalWithdrawals || 0).toFixed(0) + ' ብር';
+  }
+}
+
+async function loadDeposits() {
+  const data = await apiCall('/api/pending-deposits');
+  if (!data) return;
+  const body = document.getElementById('depositsBody');
+  if (data.deposits.length === 0) {
+    body.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-4">No pending deposits</td></tr>';
+    return;
+  }
+  body.innerHTML = data.deposits.map(d => `
+    <tr>
+      <td class="font-mono text-xs">${d.id}</td>
+      <td>${d.phone}</td>
+      <td style="color: var(--green);">+${d.amount} ብር</td>
+      <td>${d.method || '—'}</td>
+      <td class="font-mono text-xs">${d.reference}</td>
+      <td class="text-xs text-gray-500">${new Date(d.created_at).toLocaleString()}</td>
+      <td><button class="btn btn-success text-xs" onclick="approveDeposit('${d.id}')">✅ Approve</button></td>
+    </tr>
+  `).join('');
+}
+
+async function loadWithdrawals() {
+  const data = await apiCall('/api/admin/withdrawals');
+  if (!data) return;
+  const body = document.getElementById('withdrawalsBody');
+  if (data.withdrawals.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-gray-500 py-4">No pending withdrawals</td></tr>';
+    return;
+  }
+  body.innerHTML = data.withdrawals.map(w => `
+    <tr>
+      <td class="font-mono text-xs">${w.id}</td>
+      <td>${w.phone}</td>
+      <td style="color: var(--red);">-${w.amount} ብር</td>
+      <td>${w.withdraw_phone}</td>
+      <td class="text-xs text-gray-500">${new Date(w.created_at).toLocaleString()}</td>
+      <td><button class="btn btn-success text-xs" onclick="approveWithdrawal('${w.id}')">✅ Mark Paid</button></td>
+    </tr>
+  `).join('');
+}
+
+async function loadUsers() {
+  const data = await apiCall('/api/admin/users');
+  if (!data) return;
+  usersCache = data.users;
+  renderUsers(usersCache);
+}
+
+function filterUsers() {
+  const q = document.getElementById('userSearch').value.toLowerCase();
+  renderUsers(usersCache.filter(u => u.phone.includes(q) || (u.name || '').toLowerCase().includes(q)));
+}
+
+function renderUsers(users) {
+  const body = document.getElementById('usersBody');
+  if (users.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-gray-500 py-4">No users</td></tr>';
+    return;
+  }
+  body.innerHTML = users.map(u => `
+    <tr>
+      <td>${u.phone}</td>
+      <td>${u.name}</td>
+      <td style="color: var(--gold);">${(u.balance || 0).toFixed(2)} ብር</td>
+      <td>${u.wins || 0}</td>
+      <td style="color: var(--green);">${(u.total_won || 0).toFixed(0)} ብር</td>
+      <td class="text-xs text-gray-500">${new Date(u.created_at).toLocaleDateString()}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadGames() {
+  const data = await apiCall('/api/admin/rooms?limit=50');
+  if (!data) return;
+  const body = document.getElementById('gamesBody');
+  if (data.rooms.length === 0) {
+    body.innerHTML = '<tr><td colspan="8" class="text-center text-gray-500 py-4">No games</td></tr>';
+    return;
+  }
+  body.innerHTML = data.rooms.map(r => `
+    <tr>
+      <td class="font-mono text-xs">${r.id}</td>
+      <td>${r.name}</td>
+      <td>${r.price} ብር</td>
+      <td><span class="badge badge-${r.status === 'finished' ? 'completed' : 'pending'}">${r.status}</span></td>
+      <td>${r.player_count || 0}</td>
+      <td>${r.winner_phone || '—'}</td>
+      <td style="color: var(--gold);">${(r.prize_pool || 0).toFixed(0)} ብር</td>
+      <td class="text-xs text-gray-500">${new Date(r.created_at).toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadTransactions() {
+  const data = await apiCall('/api/admin/transactions?limit=100');
+  if (!data) return;
+  const body = document.getElementById('transactionsBody');
+  if (data.transactions.length === 0) {
+    body.innerHTML = '<tr><td colspan="7" class="text-center text-gray-500 py-4">No transactions</td></tr>';
+    return;
+  }
+  body.innerHTML = data.transactions.map(t => `
+    <tr>
+      <td class="font-mono text-xs">${t.id}</td>
+      <td>${t.phone}</td>
+      <td>${t.type}</td>
+      <td class="${t.amount > 0 ? 'pos' : 'neg'}" style="color: ${t.amount > 0 ? 'var(--green)' : 'var(--red)'};">${t.amount > 0 ? '+' : ''}${t.amount} ብር</td>
+      <td>${(t.balance_after || 0).toFixed(2)} ብር</td>
+      <td><span class="badge badge-${t.status === 'completed' ? 'completed' : 'pending'}">${t.status}</span></td>
+      <td class="text-xs text-gray-500">${new Date(t.created_at).toLocaleString()}</td>
+    </tr>
+  `).join('');
+}
+
+async function approveDeposit(id) {
+  if (!confirm('Approve this deposit?')) return;
+  const res = await fetch(API + '/api/verify-deposit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ depositId: id, adminKey })
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert('✅ Approved');
+    loadDeposits();
+    loadStats();
+  } else {
+    alert('Error: ' + data.message);
+  }
+}
+
+async function approveWithdrawal(id) {
+  if (!confirm('Mark this withdrawal as paid?')) return;
+  const res = await fetch(API + '/api/admin/withdrawals/' + id + '/approve', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ adminKey })
+  });
+  const data = await res.json();
+  if (data.success) {
+    alert('✅ Marked as paid');
+    loadWithdrawals();
+  } else {
+    alert('Error: ' + data.message);
+  }
+}
+
+// Auto-refresh stats every 30s
+setInterval(() => {
+  if (document.getElementById('dashboard').style.display !== 'none') {
+    loadStats();
+  }
+}, 30000);
+</script>
+</body>
+</html>
