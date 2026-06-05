@@ -1045,7 +1045,7 @@ function openRoom(price, name) {
     return;
   }
   const s = connectSocket();
-  s.emit('createRoom', { playerName: currentUser.name, price, roomName: name });
+  s.emit('joinOrCreateRoom', { price }); // FIX: auto-matchmaking
 }
 
 function enterCardPicker(taken) {
